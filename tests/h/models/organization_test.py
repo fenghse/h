@@ -2,9 +2,7 @@
 
 from __future__ import unicode_literals
 
-import pytest
 from h import models
-from h.models.organization import ORGANIZATION_LOGO_MAX_CHARS
 
 
 def test_init_sets_given_attributes():
@@ -29,34 +27,9 @@ def test_null_logo():
     assert organization.logo is None
 
 
-def test_too_short_name_raises_value_error():
-    with pytest.raises(ValueError):
-        models.Organization(name="")
-
-
-def test_too_long_name_raises_value_error():
-    with pytest.raises(ValueError):
-        models.Organization(name="abcdefghijklmnopqrstuvwxyz")
-
-
 def test_none_logo_is_valid():
     org = models.Organization(name="My Organization", logo=None)
     assert org.logo is None
-
-
-def test_too_long_logo_raises_value_error():
-    with pytest.raises(ValueError):
-        models.Organization(logo='<svg>{}</svg>'.format("a" * ORGANIZATION_LOGO_MAX_CHARS + "b"))
-
-
-def test_malformed_logo_raises_value_error():
-    with pytest.raises(ValueError):
-        models.Organization(logo='<svg>/svg>')
-
-
-def test_non_svg_logo_raises_value_error():
-    with pytest.raises(ValueError):
-        models.Organization(logo='<h>This is not a svg</h>')
 
 
 def test_repr(db_session, factories):
