@@ -14,8 +14,10 @@ def search():
 
 
 @search.command()
+@click.option('--parallel/--no-parallel', default=False,
+              help='Use Celery tasks to reindex annotations in parallel.')
 @click.pass_context
-def reindex(ctx):
+def reindex(ctx, parallel):
     """
     Reindex all annotations in all clusters.
 
@@ -23,7 +25,7 @@ def reindex(ctx):
     updates the index alias. This requires that the index is aliased already,
     and will raise an error if it is not.
     """
-    _reindex_old(ctx)
+    _reindex_old(ctx, parallel)
 
 
 @search.command('update-settings')
@@ -39,7 +41,7 @@ def update_settings(ctx):
     _update_settings_old(ctx)
 
 
-def _reindex_old(ctx):
+def _reindex_old(ctx, parallel):
     """
     Reindex all annotations in the old cluster.
 
@@ -52,7 +54,7 @@ def _reindex_old(ctx):
 
     request = ctx.obj['bootstrap']()
 
-    indexer.reindex(request.db, request.es, request)
+    indexer.reindex(request.db, request.es, request, parallel=parallel)
 
 
 def _update_settings_old(ctx):

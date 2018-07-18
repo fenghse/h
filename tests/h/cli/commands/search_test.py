@@ -19,7 +19,12 @@ class TestReindexCommand(object):
         assert result.exit_code == 0
         reindex.assert_called_once_with(pyramid_request.db,
                                         pyramid_request.es,
-                                        pyramid_request)
+                                        pyramid_request,
+                                        parallel=False)
+
+    def test_calls_reindex_with_parallel_option(self):
+        # TODO - Test that `parallel` flag is passed to `reindex`.
+        pass
 
     @pytest.fixture
     def reindex(self, patch):

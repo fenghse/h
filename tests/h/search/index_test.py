@@ -11,6 +11,7 @@ import mock
 import pytest
 
 import h.search.index
+from h.services.nipsa import NipsaService
 
 from tests.common.matchers import Matcher
 
@@ -317,6 +318,7 @@ class TestDelete(object):
         assert result.get('_source').get('deleted') is True
 
 
+@pytest.mark.usefixtures('nipsa_service')
 class TestBatchIndexer(object):
     def test_it_indexes_all_annotations(self, batch_indexer, es_client, factories):
         annotations = factories.Annotation.create_batch(3)
@@ -441,6 +443,12 @@ class TestBatchIndexer(object):
                                               pyramid_request, es_client.index, 'create').index()
 
         assert errored == expected_errored_ids
+
+    @pytest.fixture
+    def nipsa_service(self, pyramid_config):
+        svc = mock.create_autospec(NipsaService, spec_set=True, instance=True)
+        pyramid_config.register_service(svc, name='nipsa')
+        return svc
 
 
 class SearchResponseWithIDs(Matcher):
