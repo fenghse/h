@@ -5,11 +5,13 @@ from __future__ import unicode_literals
 import mock
 import pytest
 
-from pyramid.httpexceptions import HTTPNoContent, HTTPBadRequest
+from pyramid.httpexceptions import HTTPNoContent, HTTPBadRequest, HTTPNotFound
 
 from h.views.api import groups as views
+from h.models.auth_client import GrantType
 from h.services.list_groups import ListGroupsService
 from h.services.group import GroupService
+from h.services.user import UserService
 from h.services.group_links import GroupLinksService
 
 pytestmark = pytest.mark.usefixtures('GroupsJSONPresenter')
@@ -184,6 +186,62 @@ class TestCreateGroup(object):
         return pyramid_request
 
 
+@pytest.mark.usefixtures('group_service',
+                         'user_service',
+                         'request_auth_client',
+                         'validate_auth_client_authority')
+class TestAddMember(object):
+
+    def test_it_adds_user_from_request_params_to_group(self,
+                                                       factories,
+                                                       pyramid_request,
+                                                       group_service,
+                                                       user_service):
+        group = factories.Group(authority='example.com')
+        user = factories.User(authority='example.com')
+
+        user_service.fetch.return_value = user
+
+        pyramid_request.matchdict['userid'] = user.userid
+        pyramid_request.matchdict['pubid'] = group.pubid
+
+        resp = views.add_member(group, pyramid_request)
+
+        group_service.member_join.assert_called_once_with(group, user.userid)
+        assert isinstance(resp, HTTPNoContent)
+
+    def test_it_fails_with_mismatched_user_and_group_authorities(self,
+                                                                 factories,
+                                                                 pyramid_request,
+                                                                 group_service,
+                                                                 user_service):
+        group = factories.Group(authority="different_authority.com")
+        user = factories.User(authority='example.com')
+
+        user_service.fetch.return_value = user
+
+        pyramid_request.matchdict['userid'] = user.userid
+        pyramid_request.matchdict['pubid'] = group.pubid
+
+        with pytest.raises(HTTPNotFound):
+            views.add_member(group, pyramid_request)
+
+    def test_it_fails_with_non_existent_user(self,
+                                             factories,
+                                             pyramid_request,
+                                             group_service,
+                                             user_service):
+        group = factories.Group(authority='example.com')
+
+        user_service.fetch.return_value = None
+
+        pyramid_request.matchdict['userid'] = "some_user"
+        pyramid_request.matchdict['pubid'] = group.pubid
+
+        with pytest.raises(HTTPNotFound):
+            views.add_member(group, pyramid_request)
+
+
 @pytest.mark.usefixtures('authenticated_userid', 'group_service')
 class TestRemoveMember(object):
 
@@ -209,12 +267,12 @@ class TestRemoveMember(object):
 
     @pytest.fixture
     def shorthand_request(self, pyramid_request):
-        pyramid_request.matchdict['user'] = 'me'
+        pyramid_request.matchdict['userid'] = 'me'
         return pyramid_request
 
     @pytest.fixture
     def username_request(self, pyramid_request):
-        pyramid_request.matchdict['user'] = 'bob'
+        pyramid_request.matchdict['userid'] = 'bob'
         return pyramid_request
 
     @pytest.fixture
@@ -258,6 +316,13 @@ def group_service(pyramid_config):
 
 
 @pytest.fixture
+def user_service(pyramid_config):
+    service = mock.create_autospec(UserService, spec_set=True, instance=True)
+    pyramid_config.register_service(service, name='user')
+    return service
+
+
+@pytest.fixture
 def group_links_service(pyramid_config):
     svc = mock.create_autospec(GroupLinksService, spec_set=True, instance=True)
     pyramid_config.register_service(svc, name='group_links')
@@ -269,3 +334,20 @@ def list_groups_service(pyramid_config):
     svc = mock.create_autospec(ListGroupsService, spec_set=True, instance=True)
     pyramid_config.register_service(svc, name='list_groups')
     return svc
+
+
+@pytest.fixture
+def auth_client(factories):
+    return factories.ConfidentialAuthClient(authority='example.com',
+                                            grant_type=GrantType.client_credentials)
+
+
+@pytest.fixture
+def request_auth_client(patch, auth_client):
+    request_auth_client = patch('h.views.api.groups.request_auth_client')
+    request_auth_client.return_value = auth_client
+
+
+@pytest.fixture
+def validate_auth_client_authority(patch):
+    return patch('h.views.api.groups.validate_auth_client_authority')
